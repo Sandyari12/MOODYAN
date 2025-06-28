@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/mood_prefs_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/mood_provider.dart';
 import 'package:intl/intl.dart';
 import '../models/mood_journal.dart';
 
@@ -58,17 +59,22 @@ class _MoodDetailScreenState extends State<MoodDetailScreen> {
       ),
     );
 
-    if (confirmed == true && _currentMood.docId != null) {
-      await MoodPrefsService.delete(_currentMood.docId!);
+    if (confirmed == true) {
+      final success = await context.read<MoodProvider>().deleteMood(_currentMood.date);
       if (mounted) {
-        Navigator.pop(context, 'deleted');
+        if (success) {
+          Navigator.pop(context, 'deleted');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gagal menghapus mood!')),
+          );
+        }
       }
     }
   }
 
   Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
-      print('Trying to update mood with date: \'${_currentMood.date}\', new note: \'${_noteController.text}\'');
       final updatedMood = MoodJournal(
         docId: _currentMood.docId,
         id: _currentMood.id,
@@ -77,26 +83,28 @@ class _MoodDetailScreenState extends State<MoodDetailScreen> {
         note: _noteController.text,
         date: _currentMood.date,
       );
-      final updatedRows = await MoodPrefsService.update(updatedMood);
-      if (updatedRows == 0) {
+      
+      final success = await context.read<MoodProvider>().updateMood(updatedMood);
+      
+      if (success) {
+        setState(() {
+          _isEditing = false;
+          _currentMood = updatedMood;
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gagal menyimpan perubahan. Data tidak ditemukan.')),
+            const SnackBar(content: Text('Mood berhasil diperbarui!')),
+          );
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) Navigator.pop(context, 'updated');
+          });
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gagal menyimpan perubahan!')),
           );
         }
-        return;
-      }
-      setState(() {
-        _isEditing = false;
-        _currentMood = updatedMood;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mood berhasil diperbarui!')),
-        );
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) Navigator.pop(context, 'updated');
-        });
       }
     }
   }

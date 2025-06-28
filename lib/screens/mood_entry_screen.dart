@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/mood_prefs_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/mood_provider.dart';
 import 'package:intl/intl.dart';
 import '../models/mood_journal.dart';
 
@@ -142,7 +143,7 @@ class _MoodEntryScreenState extends State<MoodEntryScreen> {
                     if (_formKey.currentState!.validate()) {
                       final now = DateTime.now().toLocal();
                       final date = now.toIso8601String();
-                      await MoodPrefsService.add(
+                      final success = await context.read<MoodProvider>().addMood(
                         MoodJournal(
                           mood: _selectedMood!,
                           emoji: _selectedEmoji!,
@@ -151,10 +152,16 @@ class _MoodEntryScreenState extends State<MoodEntryScreen> {
                         ),
                       );
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Mood berhasil ditambahkan!')),
-                        );
-                        Navigator.pop(context, true);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Mood berhasil ditambahkan!')),
+                          );
+                          Navigator.pop(context, true);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Gagal menambahkan mood!')),
+                          );
+                        }
                       }
                     }
                   },

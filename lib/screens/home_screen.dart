@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'mood_entry_screen.dart';
-import '../services/mood_prefs_service.dart';
-import '../services/user_prefs_service.dart';
-import '../services/session_service.dart';
+import '../providers/mood_provider.dart';
+import '../providers/user_provider.dart';
 import 'mood_detail_screen.dart';
 import 'mood_stats_screen.dart';
 import 'profile_screen.dart';
@@ -27,76 +27,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // Home tab state
-  List<MoodJournal> _moods = [];
-  bool _isLoading = true;
-  String? _userEmail;
-  String? _userName;
-  String? _mostFrequentMood;
-  String? _mostFrequentEmoji;
-  int _streak = 0;
-
   @override
   void initState() {
     super.initState();
-    _loadAll();
+    _loadInitialData();
   }
 
-  Future<void> _loadAll() async {
-    await _loadMoods();
-    await _loadUserName();
-    _calculateStats();
-    setState(() {});
-  }
-
-  Future<void> _loadMoods() async {
-    final moods = await MoodPrefsService.getAll();
-    setState(() {
-      _moods = moods;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _loadUserName() async {
-    _userEmail = await SessionService.getLoggedInEmail();
-    if (_userEmail != null) {
-      final name = await UserPrefsService.getUserName(_userEmail!);
-      setState(() {
-        _userName = name;
-      });
-    }
-  }
-
-  void _calculateStats() {
-    final now = DateTime.now();
-    final thisMonth = _moods.where((mood) {
-      final date = DateTime.parse(mood.date);
-      return date.month == now.month && date.year == now.year;
-    }).toList();
-    if (thisMonth.isNotEmpty) {
-      final freq = <String, int>{};
-      final emojiMap = <String, String>{};
-      for (var mood in thisMonth) {
-        freq[mood.mood] = (freq[mood.mood] ?? 0) + 1;
-        emojiMap[mood.mood] = mood.emoji;
-      }
-      final sorted = freq.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      _mostFrequentMood = sorted.first.key;
-      _mostFrequentEmoji = emojiMap[_mostFrequentMood];
-    } else {
-      _mostFrequentMood = null;
-      _mostFrequentEmoji = null;
-    }
-    final dates = _moods.map((m) => DateFormat('yyyy-MM-dd').format(DateTime.parse(m.date))).toSet().toList();
-    dates.sort((a, b) => b.compareTo(a));
-    int streak = 0;
-    DateTime day = DateTime.now();
-    while (dates.contains(DateFormat('yyyy-MM-dd').format(day))) {
-      streak++;
-      day = day.subtract(const Duration(days: 1));
-    }
-    _streak = streak;
+  Future<void> _loadInitialData() async {
+    // Initialize providers
+    await context.read<UserProvider>().initializeUser();
+    await context.read<MoodProvider>().loadMoods();
   }
 
   Future<void> _navigateToAddMood() async {
@@ -105,7 +45,8 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (context) => const MoodEntryScreen()),
     );
     if (result == true) {
-      await _loadAll();
+      // Reload moods after adding new mood
+      await context.read<MoodProvider>().loadMoods();
     }
   }
 
@@ -115,143 +56,190 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (context) => MoodDetailScreen(mood: mood)),
     );
     if (result != null) {
-      await _loadAll();
+      // Reload moods after updating/deleting mood
+      await context.read<MoodProvider>().loadMoods();
     }
   }
 
   Widget _buildHomeTab() {
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    MoodJournal? todayMood;
-    try {
-      todayMood = _moods.firstWhere(
-        (mood) => DateFormat('yyyy-MM-dd').format(DateTime.parse(mood.date)) == today,
-      );
-    } catch (e) {
-      todayMood = null;
-    }
-    String greeting = 'Halo, selamat datang! 👋';
-    if ((_userName ?? '').isNotEmpty) {
-      greeting = 'Hope your day is as amazing as you are!';
-    }
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            greeting,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            color: Colors.deepPurple.shade50,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_mostFrequentMood != null && _mostFrequentEmoji != null)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        _mostFrequentEmoji!.endsWith('.png')
-                          ? SizedBox(
-                              width: 56,
-                              height: 56,
-                              child: Image.asset(_mostFrequentEmoji!, fit: BoxFit.contain),
-                            )
-                          : Text(_mostFrequentEmoji!, style: const TextStyle(fontSize: 48)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Mood terbanyak bulan ini: $_mostFrequentMood',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.local_fire_department, color: Colors.deepPurple, size: 22),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                'Streak: $_streak hari berturut-turut',
-                                style: const TextStyle(fontSize: 15),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.emoji_emotions_outlined, size: 48, color: Colors.grey),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Belum ada data mood bulan ini',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.local_fire_department, color: Colors.grey, size: 22),
-                            const SizedBox(width: 8),
-                            const Text('-', style: TextStyle(fontSize: 15, color: Colors.grey)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  if (_mostFrequentMood != null && _mostFrequentEmoji != null)
-                    const SizedBox(height: 8),
-                ],
+    return Consumer2<MoodProvider, UserProvider>(
+      builder: (context, moodProvider, userProvider, child) {
+        final moods = moodProvider.moods;
+        final isLoading = moodProvider.isLoading;
+        final userName = userProvider.getUserName();
+        
+        if (isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        MoodJournal? todayMood;
+        try {
+          todayMood = moods.firstWhere(
+            (mood) => DateFormat('yyyy-MM-dd').format(DateTime.parse(mood.date)) == today,
+          );
+        } catch (e) {
+          todayMood = null;
+        }
+
+        String greeting = 'Halo, selamat datang! 👋';
+        if ((userName ?? '').isNotEmpty) {
+          greeting = 'Hope your day is as amazing as you are!';
+        }
+
+        // Calculate stats
+        final now = DateTime.now();
+        final thisMonth = moods.where((mood) {
+          final date = DateTime.parse(mood.date);
+          return date.month == now.month && date.year == now.year;
+        }).toList();
+
+        String? mostFrequentMood;
+        String? mostFrequentEmoji;
+        if (thisMonth.isNotEmpty) {
+          final freq = <String, int>{};
+          final emojiMap = <String, String>{};
+          for (var mood in thisMonth) {
+            freq[mood.mood] = (freq[mood.mood] ?? 0) + 1;
+            emojiMap[mood.mood] = mood.emoji;
+          }
+          final sorted = freq.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          mostFrequentMood = sorted.first.key;
+          mostFrequentEmoji = emojiMap[mostFrequentMood];
+        }
+
+        // Calculate streak
+        final dates = moods.map((m) => DateFormat('yyyy-MM-dd').format(DateTime.parse(m.date))).toSet().toList();
+        dates.sort((a, b) => b.compareTo(a));
+        int streak = 0;
+        DateTime day = DateTime.now();
+        while (dates.contains(DateFormat('yyyy-MM-dd').format(day))) {
+          streak++;
+          day = day.subtract(const Duration(days: 1));
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                greeting,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-            ),
-          ),
-          const SizedBox(height: 28),
-          const Text(
-            'Riwayat Mood & Jurnal',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _moods.isEmpty
-                    ? const Center(child: Text('Belum ada data mood/jurnal.'))
-                    : ListView.builder(
-                        itemCount: _moods.length,
-                        itemBuilder: (context, index) {
-                          final mood = _moods[index];
-                          final date = DateFormat('dd MMM').format(DateTime.parse(mood.date));
-                          return Card(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: ListTile(
-                              leading: mood.emoji != null
-                                  ? SizedBox(
-                                      width: 56,
-                                      height: 56,
-                                      child: Image.asset(mood.emoji, fit: BoxFit.contain),
-                                    )
-                                  : Icon(Icons.emoji_emotions, size: 48),
-                              title: Text(mood.mood),
-                              subtitle: Text('"${mood.note}"'),
-                              trailing: Text(date),
-                              onTap: () => _navigateToMoodDetail(mood),
+              const SizedBox(height: 16),
+              Card(
+                color: Colors.deepPurple.shade50,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (mostFrequentMood != null && mostFrequentEmoji != null)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            mostFrequentEmoji!.endsWith('.png')
+                              ? SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: Image.asset(mostFrequentEmoji!, fit: BoxFit.contain),
+                                )
+                              : Text(mostFrequentEmoji!, style: const TextStyle(fontSize: 48)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Mood terbanyak bulan ini: $mostFrequentMood',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
                             ),
-                          );
-                        },
-                      ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.local_fire_department, color: Colors.deepPurple, size: 22),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'Streak: $streak hari berturut-turut',
+                                    style: const TextStyle(fontSize: 15),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.emoji_emotions_outlined, size: 48, color: Colors.grey),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Belum ada data mood bulan ini',
+                              style: TextStyle(fontSize: 16, color: Colors.grey),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.local_fire_department, color: Colors.grey, size: 22),
+                                const SizedBox(width: 8),
+                                const Text('-', style: TextStyle(fontSize: 15, color: Colors.grey)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      if (mostFrequentMood != null && mostFrequentEmoji != null)
+                        const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                'Riwayat Mood & Jurnal',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : moods.isEmpty
+                        ? const Center(child: Text('Belum ada data mood/jurnal.'))
+                        : ListView.builder(
+                            itemCount: moods.length,
+                            itemBuilder: (context, index) {
+                              final mood = moods[index];
+                              final date = DateFormat('dd MMM').format(DateTime.parse(mood.date));
+                              return Card(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                child: ListTile(
+                                  leading: mood.emoji != null
+                                      ? SizedBox(
+                                          width: 56,
+                                          height: 56,
+                                          child: Image.asset(mood.emoji, fit: BoxFit.contain),
+                                        )
+                                      : Icon(Icons.emoji_emotions, size: 48),
+                                  title: Text(mood.mood),
+                                  subtitle: Text('"${mood.note}"'),
+                                  trailing: Text(date),
+                                  onTap: () => _navigateToMoodDetail(mood),
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
