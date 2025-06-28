@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         String greeting = 'Halo, selamat datang! 👋';
         if ((userName ?? '').isNotEmpty) {
-          greeting = 'Hope your day is as amazing as you are!';
+          greeting = 'Semoga harimu sama menakjubkannya denganmu!';
         }
 
         // Calculate stats

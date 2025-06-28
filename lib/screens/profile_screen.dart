@@ -102,6 +102,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 }
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Hapus Foto Profil'),
+              onTap: () async {
+                Navigator.pop(context);
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('avatar_path');
+                setState(() {
+                  _avatarPath = null;
+                });
+              },
+            ),
           ],
         ),
       ),
