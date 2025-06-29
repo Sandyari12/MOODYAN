@@ -153,10 +153,10 @@ class _MoodEntryScreenState extends State<MoodEntryScreen> {
                       );
                       if (mounted) {
                         if (success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Mood berhasil ditambahkan!')),
-                          );
-                          Navigator.pop(context, true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Mood berhasil ditambahkan!')),
+                        );
+                        Navigator.pop(context, true);
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Gagal menambahkan mood!')),

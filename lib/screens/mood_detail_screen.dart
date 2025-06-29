@@ -63,7 +63,7 @@ class _MoodDetailScreenState extends State<MoodDetailScreen> {
       final success = await context.read<MoodProvider>().deleteMood(_currentMood.date);
       if (mounted) {
         if (success) {
-          Navigator.pop(context, 'deleted');
+        Navigator.pop(context, 'deleted');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Gagal menghapus mood!')),
@@ -87,17 +87,17 @@ class _MoodDetailScreenState extends State<MoodDetailScreen> {
       final success = await context.read<MoodProvider>().updateMood(updatedMood);
       
       if (success) {
-        setState(() {
-          _isEditing = false;
-          _currentMood = updatedMood;
+      setState(() {
+        _isEditing = false;
+        _currentMood = updatedMood;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mood berhasil diperbarui!')),
+        );
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) Navigator.pop(context, 'updated');
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Mood berhasil diperbarui!')),
-          );
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) Navigator.pop(context, 'updated');
-          });
         }
       } else {
         if (mounted) {
